@@ -65,6 +65,9 @@ struct Cli {
 
     #[clap(long = "file-ext", help = "output file types [default: same as input]")]
     file_ext: Option<FileExt>,
+
+    #[clap(long = "crop", help = "crop by blank-left, blank-right")]
+    crop: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -103,12 +106,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (file_no, file) in cli.input_path.iter().enumerate() {
         let im = Reader::open(file)?.decode()?;
 
-        let (_means, vars): (Vec<_>, Vec<_>) = get_mean_var(
-            &im,
-            Some((cli.blank_left as f32 / 100.0, cli.blank_right as f32 / 100.0)),
-        )
-        .into_iter()
-        .unzip();
+        let range = (
+            (f32::max(cli.blank_left as f32 / 100.0, 0.0) * im.width() as f32) as u32,
+            (f32::min(cli.blank_right as f32 / 100.0, 1.0) * im.width() as f32) as u32,
+        );
+
+        let (_means, vars): (Vec<_>, Vec<_>) = get_mean_var(&im, Some((range.0 as usize, range.1 as usize)))
+            .into_iter()
+            .unzip();
         let vars = rolling(&vars, cli.blank_height).map_or(Err(Error::InvalidBlankHeight), Ok)?;
         let mut im_no = 0;
         let mut y_start = 0;
@@ -140,8 +145,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             let filename = cli.output_dir.join(format!("{:02}-{:02}.{}", file_no, im_no, file_ext));
-            im.crop_imm(0, y_start, im.width(), y_end - y_start + cli.margin)
-                .save(&filename)?;
+            if cli.crop {
+                im.crop_imm(range.0, y_start, range.1 - range.0, y_end - y_start + cli.margin)
+                    .save(&filename)?;
+            } else {
+                im.crop_imm(0, y_start, im.width(), y_end - y_start + cli.margin)
+                    .save(&filename)?;
+            }
             println!("{:?}: {}-{}", filename, y_start, y_end);
             im_no += 1;
             y_start = y_end;
@@ -163,13 +173,8 @@ fn rolling(v: &Vec<f32>, n: usize) -> Option<Vec<f32>> {
     }
 }
 
-fn get_mean_var(im: &DynamicImage, range: Option<(f32, f32)>) -> Vec<(f32, f32)> {
-    let range: (usize, usize) = range.map_or((0, im.width() as usize), |(fm, to)| {
-        (
-            (f32::max(fm, 0.0) * im.width() as f32) as usize,
-            (f32::min(to, 1.0) * im.width() as f32) as usize,
-        )
-    });
+fn get_mean_var(im: &DynamicImage, range: Option<(usize, usize)>) -> Vec<(f32, f32)> {
+    let range = range.unwrap_or((0, im.width() as usize));
     im.to_rgb8()
         .rows()
         .map(|row| {

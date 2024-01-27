@@ -18,6 +18,7 @@ Options:
       --blank-left <BLANK_LEFT>        left portion to decide blank spaces (0-100) [default: 0]
       --blank-right <BLANK_RIGHT>      right portion to decide blank spaces (0-100) [default: 100]
       --file-ext <FILE_EXT>            output file types [default: same as input] [possible values: jpg, png]
+      --crop                           crop by blank-left, blank-right
   -h, --help                           Print help
 ```
 
