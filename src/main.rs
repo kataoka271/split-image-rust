@@ -49,7 +49,7 @@ struct Cli {
     #[clap(
         long = "blank-left",
         default_value = "0",
-        value_parser = clap::value_parser!(u32).range(0..100),
+        value_parser = clap::value_parser!(u32).range(0..101),
         help = "left portion to decide blank spaces (0-100)"
     )]
     blank_left: u32,
@@ -58,7 +58,7 @@ struct Cli {
     #[clap(
         long = "blank-right",
         default_value = "100",
-        value_parser = clap::value_parser!(u32).range(0..100),
+        value_parser = clap::value_parser!(u32).range(0..101),
         help = "right portion to decide blank spaces (0-100)"
     )]
     blank_right: u32,
