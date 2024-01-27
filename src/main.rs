@@ -43,6 +43,7 @@ struct Cli {
     #[clap(
         long = "blank-left",
         default_value = "0",
+        value_parser = clap::value_parser!(u32).range(0..100),
         help = "left portion to decide blank spaces (0-100)"
     )]
     blank_left: u32,
@@ -51,6 +52,7 @@ struct Cli {
     #[clap(
         long = "blank-right",
         default_value = "100",
+        value_parser = clap::value_parser!(u32).range(0..100),
         help = "right portion to decide blank spaces (0-100)"
     )]
     blank_right: u32,
@@ -65,11 +67,19 @@ enum Error {
         y_start: u32,
         blank_height: usize,
     },
+    #[error("blank-height must be smaller than its image height")]
+    InvalidBlankHeight,
+    #[error("blank-left must be smaller than blank-right")]
+    InvalidBlankLeft,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     println!("{:?}", cli);
+
+    if cli.blank_left >= cli.blank_right {
+        return Err(Error::InvalidBlankLeft.into());
+    }
 
     if !&cli.output_dir.exists() {
         std::fs::create_dir(&cli.output_dir)?;
@@ -90,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into_iter()
         .unzip();
-        let vars = rolling(&vars, cli.blank_height);
+        let vars = rolling(&vars, cli.blank_height).map_or(Err(Error::InvalidBlankHeight), Ok)?;
         let mut im_no = 0;
         let mut y_start = 0;
 
@@ -125,10 +135,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn rolling(v: &Vec<f32>, n: usize) -> Vec<f32> {
-    (0..v.len() - n)
-        .map(|i| v[i..i + n].iter().sum::<f32>() / n as f32)
-        .collect()
+fn rolling(v: &Vec<f32>, n: usize) -> Option<Vec<f32>> {
+    if n > 0 && v.len() > n {
+        Some(
+            (0..v.len() - n + 1)
+                .map(|i| v[i..i + n].iter().sum::<f32>() / n as f32)
+                .collect(),
+        )
+    } else {
+        None
+    }
 }
 
 fn get_mean_var(im: &DynamicImage, range: Option<(f32, f32)>) -> Vec<(f32, f32)> {
@@ -141,7 +157,7 @@ fn get_mean_var(im: &DynamicImage, range: Option<(f32, f32)>) -> Vec<(f32, f32)>
     im.to_rgb8()
         .rows()
         .map(|row| {
-            let pixels: Vec<_> = row.skip(range.0).take(range.1).collect();
+            let pixels: Vec<_> = row.skip(range.0).take(range.1 - range.0).collect();
 
             let r: Vec<f32> = pixels.iter().map(|pixel| pixel.0[0] as f32).collect();
             let g: Vec<f32> = pixels.iter().map(|pixel| pixel.0[1] as f32).collect();
