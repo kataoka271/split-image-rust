@@ -1,7 +1,13 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use image::{io::Reader, DynamicImage};
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum FileExt {
+    Jpg,
+    Png,
+}
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -56,6 +62,9 @@ struct Cli {
         help = "right portion to decide blank spaces (0-100)"
     )]
     blank_right: u32,
+
+    #[clap(long = "file-ext", help = "output file types [default: same as input]")]
+    file_ext: Option<FileExt>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -86,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     for file in std::fs::read_dir(&cli.output_dir)? {
         let path = file?.path();
-        if path.extension().map_or(false, |e| e == "png") {
+        if path.extension().map_or(false, |e| e == "png" || e == "jpg") {
             std::fs::remove_file(path)?;
         }
     }
@@ -103,6 +112,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let vars = rolling(&vars, cli.blank_height).map_or(Err(Error::InvalidBlankHeight), Ok)?;
         let mut im_no = 0;
         let mut y_start = 0;
+        let file_ext = match cli.file_ext {
+            Some(ext) => match ext {
+                FileExt::Jpg => "jpg",
+                FileExt::Png => "png",
+            },
+            None => file.extension().and_then(|e| e.to_str()).unwrap_or("bin"),
+        };
 
         while y_start < im.height() {
             let mut y_end = u32::min(y_start + cli.max_height, im.height());
@@ -123,10 +139,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     y_end -= 1;
                 }
             }
-            let filename = &format!("output/{:02}-{:02}.png", file_no, im_no);
+            let filename = cli.output_dir.join(format!("{:02}-{:02}.{}", file_no, im_no, file_ext));
             im.crop_imm(0, y_start, im.width(), y_end - y_start + cli.margin)
-                .save(filename)?;
-            println!("{}: {}-{}", filename, y_start, y_end);
+                .save(&filename)?;
+            println!("{:?}: {}-{}", filename, y_start, y_end);
             im_no += 1;
             y_start = y_end;
         }
