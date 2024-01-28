@@ -1,7 +1,6 @@
-use std::path::PathBuf;
-
 use clap::{Parser, ValueEnum};
 use image::{io::Reader, DynamicImage};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum FileExt {
@@ -161,6 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// `n`個の要素の移動平均を算出する。`v`の要素数以上の値、0以下の値を入力したときは`None`を返す。
 fn rolling(v: &Vec<f32>, n: usize) -> Option<Vec<f32>> {
     if n > 0 && v.len() > n {
         Some(
@@ -173,6 +173,7 @@ fn rolling(v: &Vec<f32>, n: usize) -> Option<Vec<f32>> {
     }
 }
 
+/// 画像`im`の各行ピクセルの画素平均と画素分散を返す。
 fn get_mean_var(im: &DynamicImage, range: Option<(usize, usize)>) -> Vec<(f32, f32)> {
     let range = range.unwrap_or((0, im.width() as usize));
     im.to_rgb8()
